@@ -9,6 +9,8 @@
 #include "common/async_http_client.h"
 #include "http_service.h"
 
+#include "log/log.h"
+
 AsyncHttpClient* client;
 
 using namespace std;
@@ -19,17 +21,19 @@ class RequestHandler {
         while (1) {
             std::string context_id;
             HttpRequestPtr http_request = make_shared<HttpRequest>();
-            if (HttpService::Instance()->TimedWait(context_id, http_request, 2)) {
+            if (HttpService::Instance()->TimedWait(context_id, http_request, 2000)) {
                 string forward_url = "http://172.20.6.21:1637/request_trace_id_validate";
                 string forward_request = http_request->body;
                 string log_id = "log_id";
                 vector<string> headers;
                 for (auto it : http_request->head) {
                     string field = it.first + ":" + it.second;
-                    headers.push_back(it.first + ":" + it.second);
+                    headers.push_back(field);
+                    PLOG_INFO("send head=%s", field.c_str());
                 }
                 // 这里处理请求业务
-                PLOG_INFO("post to remote, context_id=%s, url=%s, body=%s", context_id.c_str(), forward_url.c_str(), forward_request.c_str());
+                PLOG_INFO("post to remote, context_id=%s, url=%s, body=%s", context_id.c_str(), forward_url.c_str(),
+                          forward_request.c_str());
                 client->Post(forward_url, forward_request, context_id, log_id, headers);
             }
         }
