@@ -1,0 +1,19 @@
+/build/release
+/build/debug
+
+/build/lib
+/build/log
+/build/run
+/.vscode
+
+log
+build
+run
+
+# Python:
+*.py[cod]
+*.so
+*.egg
+*.egg-info
+
+.gitlab-ci.yml
