@@ -1,5 +1,7 @@
 #include "http_server.h"
 
+#include "log/log.h"
+
 using std::string;
 
 AbstractHttpSevice *HttpServer::service_;
@@ -16,7 +18,7 @@ int HttpServer::Start(int port, AbstractHttpSevice *service) {
     port_ = port;
     service_ = service;
     if (port_ <= 0) {
-        // log
+        PLOG_ERROR("http port is invalid, start server failed");
         return -1;
     }
     return RunEvent();
@@ -68,10 +70,7 @@ int HttpServer::RunEvent() {
 
     event_set_log_callback(LogHandler);
 
-    //也可以为特定的URI指定callback
-    // evhttp_set_cb(httpd, "/", specific_handler, NULL);
-
-    //循环处理events
+    //循环处理events，不阻塞调用线程
     thread t(event_dispatch);
     t.detach();
 
@@ -79,27 +78,25 @@ int HttpServer::RunEvent() {
 }
 
 /*
-#define EVENT_LOG_DEBUG 0
-#define EVENT_LOG_MSG   1
-#define EVENT_LOG_WARN  2
-#define EVENT_LOG_ERR   3
+#define EVENT_LOG_DEBUG 0--->debug
+#define EVENT_LOG_MSG   1--->info
+#define EVENT_LOG_WARN  2--->warning
+#define EVENT_LOG_ERR   3--->error
 */
-void HttpServer::LogHandler(int level, const char *msg)
-{
-    switch (level)
-    {
-    case 0:
-        PLOG_DEBUG("log from event=%s", msg);
-        break;
-    case 1:
-        PLOG_INFO("log from event=%s", msg);
-        break;
-    case 2:
-        PLOG_WARN("log from event=%s", msg);
-        break;
-    default:
-        PLOG_ERROR("log from event=%s", msg);
-        break;
+void HttpServer::LogHandler(int level, const char *msg) {
+    switch (level) {
+        case 0:
+            PLOG_DEBUG("log from event=%s", msg);
+            break;
+        case 1:
+            PLOG_INFO("log from event=%s", msg);
+            break;
+        case 2:
+            PLOG_WARN("log from event=%s", msg);
+            break;
+        default:
+            PLOG_ERROR("log from event=%s", msg);
+            break;
     }
 }
 

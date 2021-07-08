@@ -19,7 +19,7 @@ class HttpRequest {
     std::string body;
     std::vector<std::pair<std::string, std::string>> head;
     std::string url;
-    std::string method;
+    //std::string method;
 };
 
 class HttpResponse {
@@ -45,9 +45,14 @@ typedef function<void(void *handler, HttpResponsePtr reponse)> ReplyFunc;
 
 class AbstractHttpSevice {
  public:
-    // 业务处理函数，只能异步处理，不能同步回响应
+    /// @brief 回调的业务处理函数，此函数必须为异步处理，处理出错时，由Response来处理
+    /// @param handler-http请求的句柄,request-请求消息体
+    /// @return void
     virtual void DoService(void * handler, HttpRequestPtr request) = 0;
 
+    /// @brief 设置service往http server层回响应的函数
+    /// @param func-函数指针
+    /// @return void
     void SetReplyFunc(ReplyFunc func) { reply_func = func; }
 
  protected:
