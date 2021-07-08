@@ -25,16 +25,17 @@ class RequestHandler {
                 string forward_url = "http://172.20.6.21:1637/request_trace_id_validate";
                 string forward_request = http_request->body;
                 string log_id = "log_id";
+                string session_id = context_id;
                 vector<string> headers;
                 for (auto it : http_request->head) {
-                    string field = it.first + ":" + it.second;
+                    string field = it.first + ": " + it.second;
                     headers.push_back(field);
                     PLOG_INFO("send head=%s", field.c_str());
                 }
                 // 这里处理请求业务
                 PLOG_INFO("post to remote, context_id=%s, url=%s, body=%s", context_id.c_str(), forward_url.c_str(),
                           forward_request.c_str());
-                client->Post(forward_url, forward_request, context_id, log_id, headers);
+                client->Post(forward_url, forward_request, session_id, log_id, headers);
             }
         }
     }
@@ -44,12 +45,14 @@ class ResponseHandler {
  public:
     void ThreadFunc() {
         while (1) {
-            string context_id;
+            string session_id;
             AsyncResponseMsg response;
-            if (client->TimedWaitResponse(context_id, response, 2000)) {
+            if (client->TimedWaitResponse(session_id, response, 2000)) {
+                string context_id = session_id;
                 HttpResponsePtr new_response = make_shared<HttpResponse>();
                 new_response->http_code = response.http_code;
                 if (response.curl_code != 0) {
+                    PLOG_INFO("curl failed, code=%d", response.curl_code);
                     new_response->http_code = 500;
                 }
                 new_response->body = response.rsp_body;
