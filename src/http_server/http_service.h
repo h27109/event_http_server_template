@@ -28,7 +28,7 @@ class HttpService : public AbstractHttpSevice {
     /// @brief 回调的业务处理函数，此函数必须为异步处理，处理出错时，由Response来处理
     /// @param handler-http请求的句柄,request-请求消息体
     /// @return void
-    virtual void DoService(void *handler, HttpRequestPtr request);
+    virtual void DoService(void *handler, HttpRequestPtr request) override;
 
     /// @brief 回http响应
     /// @param context_id-上下文id，response-响应内容
@@ -39,11 +39,6 @@ class HttpService : public AbstractHttpSevice {
     /// @param context_id-上下文id，request-请求体，timeout_ms-超时毫秒数
     /// @return bool-是否有新的http请求
     bool TimedWait(std::string &context_id, HttpRequestPtr &request, int timecout_ms);
-
- protected:
-    BlockingQueue<HttpContextPtr> m_queue;
-
-    SessionCache<HttpContextPtr, std::string> m_session;
 
  private:
     std::string GenContextId();

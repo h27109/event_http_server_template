@@ -1,5 +1,5 @@
 
-#pragma once 
+#pragma once
 
 #include <atomic>
 #include <functional>
@@ -19,7 +19,7 @@ class HttpRequest {
     std::string body;
     std::vector<std::pair<std::string, std::string>> head;
     std::string url;
-    //std::string method;
+    // std::string method;
 };
 
 class HttpResponse {
@@ -40,7 +40,6 @@ class HttpContext {
 };
 
 typedef shared_ptr<HttpContext> HttpContextPtr;
-
 typedef function<void(void *handler, HttpResponsePtr reponse)> ReplyFunc;
 
 class AbstractHttpSevice {
@@ -48,7 +47,7 @@ class AbstractHttpSevice {
     /// @brief 回调的业务处理函数，此函数必须为异步处理，处理出错时，由Response来处理
     /// @param handler-http请求的句柄,request-请求消息体
     /// @return void
-    virtual void DoService(void * handler, HttpRequestPtr request) = 0;
+    virtual void DoService(void *handler, HttpRequestPtr request) = 0;
 
     /// @brief 设置service往http server层回响应的函数
     /// @param func-函数指针
@@ -56,5 +55,9 @@ class AbstractHttpSevice {
     void SetReplyFunc(ReplyFunc func) { reply_func = func; }
 
  protected:
+    BlockingQueue<HttpContextPtr> m_queue;
+
+    SessionCache<HttpContextPtr, std::string> m_session;
+
     ReplyFunc reply_func;
 };

@@ -31,15 +31,15 @@ void HttpServer::Stop() {
 
 void HttpServer::Reply(void *handler, HttpResponsePtr response) {
     struct evhttp_request *req = (struct evhttp_request *)handler;
+    PLOG_INFO("reply to relay, handler=%x",handler);
     int code = response->http_code;
 
     for (auto it : response->head) {
         evhttp_add_header(req->output_headers, it.first.c_str(), it.second.c_str());
     }
-    struct evhttp_connection *evcon = req->evcon;
 
     // HTTP header
-    evhttp_add_header(req->output_headers, "Connection", "close");  //??http长连接怎么处理？
+    // evhttp_add_header(req->output_headers, "Connection", "close");  //http长连接由libevent自行管理
 
     //输出的内容
     struct evbuffer *buf;
@@ -64,6 +64,8 @@ int HttpServer::RunEvent() {
         return -1;
     }
     evhttp_set_timeout(httpd_, httpd_option_timeout);
+
+    PLOG_INFO("http timeout=%d", httpd_option_timeout);
 
     //指定generic callback
     evhttp_set_gencb(httpd_, GenCallBack, NULL);
@@ -100,9 +102,15 @@ void HttpServer::LogHandler(int level, const char *msg) {
     }
 }
 
+void HttpServer::RequestCompleted(struct evhttp_request *req, void * arg)
+{
+    PLOG_INFO("request finished, req=%x", req);
+}
+
 void HttpServer::GenCallBack(struct evhttp_request *req, void *arg) {
-    const char *uri;
-    uri = evhttp_request_uri(req);
+    const char *uri = evhttp_request_uri(req);
+
+    //evhttp_request_set_on_complete_cb(req, RequestCompleted, NULL);
 
     HttpRequestPtr request = make_shared<HttpRequest>();
 
@@ -123,6 +131,8 @@ void HttpServer::GenCallBack(struct evhttp_request *req, void *arg) {
     char *post_data = (char *)EVBUFFER_DATA(req->input_buffer);
     int data_length = EVBUFFER_LENGTH(req->input_buffer);
     request->body = string(post_data, data_length);
+
+    lspf::log::Log::SetLogId(request->body);
 
     if (service_) {
         service_->DoService((void *)req, request);

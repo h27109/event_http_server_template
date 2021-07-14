@@ -30,7 +30,6 @@ class RequestHandler {
                 for (auto it : http_request->head) {
                     string field = it.first + ": " + it.second;
                     headers.push_back(field);
-                    PLOG_INFO("send head=%s", field.c_str());
                 }
                 // 这里处理请求业务
                 PLOG_INFO("post to remote, context_id=%s, url=%s, body=%s", context_id.c_str(), forward_url.c_str(),

@@ -125,6 +125,7 @@ if [ ${run_testcase} == TRUE ]; then
 fi
 
 killall event_http_server_template
+killall multi_client
 
 sleep 5
 
@@ -133,6 +134,10 @@ cd ../../..
 echo `pwd`
 
 mv ./build/release/bin/event_http_server_template .
+mv ./build/release/bin/multi_client .
 
-./event_http_server_template
+./event_http_server_template > /tmp/event_http_server_template.log
 
+sleep 5
+
+./multi_client > /tmp/multi_client.log

@@ -64,4 +64,6 @@ class HttpServer {
     /// @param req-请求句柄，arg-参数(未使用)
     /// @return void
     static void GenCallBack(struct evhttp_request *req, void *arg);
+
+    static void RequestCompleted(struct evhttp_request *req, void * arg);
 };

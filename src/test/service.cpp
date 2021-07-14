@@ -7,7 +7,9 @@
 #include <boost/function.hpp>
 #include <boost/make_shared.hpp>
 #include <boost/thread/thread.hpp>
+#include <functional>
 #include <iostream>
+#include <thread>
 
 #include "alarm_client/alarm_client.h"
 #include "apollo/apollo.h"
@@ -16,8 +18,6 @@
 #include "common/string_utility.h"
 #include "common/thread_pool.h"
 #include "database/db_oracle.h"
-#include "http_server.h"
-#include "http_service.h"
 #include "log/async_logging.h"
 #include "log/log.h"
 #include "mexception.h"
@@ -25,12 +25,7 @@
 #include "transport/async_mq_server.h"
 #include "transport/zk_client.h"
 #include "transport/zk_server.h"
-
-#include "http_server.h"
-#include "http_service.h"
-#include "busi_thread.h"
-
-#include <functional>
+#include "common/uuid_generator.h"
 
 void Service::Serve() {
     //初始化服务
@@ -53,7 +48,7 @@ static bool InitLog() {
     try {
         AppConf *conf = AppConf::Instance();
         ///设置日志输出级别
-        //lspf::log::Log::SetLogPriority(conf->GetLocalConfStr("Log", "Priority"));
+        // lspf::log::Log::SetLogPriority(conf->GetLocalConfStr("Log", "Priority"));
         lspf::log::Log::SetLogPriority("INFO");
 
         ///设置输出设备类型,默认为输出到文件, "FILE", "STDOUT"
@@ -63,6 +58,7 @@ static bool InitLog() {
         ///设置输出路径
         //lspf::log::Log::SetFilePath(conf->GetLocalConfStr("Log", "Path"));
         lspf::log::Log::SetFilePath("/tmp");
+
 
         ///设置输出文件
         lspf::log::Log::SetFileName(conf->GetLocalConfStr("Log", "FileName"));
@@ -80,41 +76,62 @@ static bool InitLog() {
     return true;
 }
 
-bool Service::InitHttpServer() {
-    // 设置http service的响应发送处理函数
-    ReplyFunc reply_func = std::bind(&HttpServer::Reply, HttpServer::Instance(), std::placeholders::_1, std::placeholders::_2);
-    HttpService::Instance()->SetReplyFunc(reply_func);
-
-    // 注册业务处理函数
-    // HttpService::Instance()->Registe("/healthz", health);
-    // HttpService::Instance()->Registe("/ReadyHealthz", ready);
-    // HttpService::Instance()->Registe("/bank_sale", bank_sale);
-
-    // 设置http service的响应发送处理函数
-    HttpServer::Instance()->Start(8080, HttpService::Instance());
-    return true;
-}
-
-
 bool Service::Init() {
     //初始化日志服务
     InitLog();
     std::cout << "InitLog Done..." << std::endl;
 
-    InitHttpServer();
-    std::cout << "InitHttpServer Done..." << std::endl;
-
     return true;
+}
+
+static void Recv(AsyncHttpClient *client) {
+    int count = 0;
+    while (1) {
+        string session_id;
+        AsyncResponseMsg response;
+        int timeout_in_ms = 2000;
+        if (client->TimedWaitResponse(session_id, response, timeout_in_ms)) {
+            lspf::log::Log::SetLogId(session_id);
+            PLOG_INFO("recv response, code=%d, count=%d", response.http_code, ++count);
+            lspf::log::Log::SetLogId("");
+        }
+    }
 }
 
 //启动自定义服务
 bool Service::Start() {
+    AsyncHttpClient *client = new AsyncHttpClient();
+    string url = "http://127.0.0.1:8080/xxx";
+    string request = "abcd";
+    string log_id = "log_id";
+    vector<string> headers = {"content-type:application/json"};
 
-    PLOG_INFO("===============starting=======================");
-    BusiThread busi_thread;
+    thread t(std::bind(Recv, client));
+    t.detach();
 
-    busi_thread.Start();
+    while (1) {
+        int icount = 200;
 
+        std::cout << "input send count" << std::endl;
+
+        //std::cin >> icount;
+
+        std::cout << "start to send, targe count=" << icount << std::endl;
+
+        for (int i = 0; i < icount; ++i) {
+            string uuid = GetStringUUID();
+            client->Post(url, uuid, uuid, uuid, headers);
+        }
+        std::cout << "finished" << std::endl;
+
+        sleep(2);
+        
+        break;
+    }
+    while(1)
+    {
+        sleep(100);
+    }
     return true;
 }
 
