@@ -140,4 +140,4 @@ mv ./build/release/bin/multi_client .
 
 sleep 5
 
-./multi_client > /tmp/multi_client.log
+./multi_client

@@ -8,7 +8,6 @@
 #include "boost/thread.hpp"
 #include "common/async_http_client.h"
 #include "http_service.h"
-
 #include "log/log.h"
 
 AsyncHttpClient* client;
@@ -61,21 +60,58 @@ class ResponseHandler {
 
                 HttpService::Instance()->Response(context_id, new_response);
                 PLOG_INFO("send response, context_id=%s", context_id.c_str());
+
+                static int recv_count = 0;
+                recv_count++;
+                if (recv_count % 100 == 0) {
+                    std::cout << "get response cout=" << recv_count << std::endl;
+                }
             }
+        }
+    }
+};
+
+class RequestLoopHandler {
+ public:
+    void ThreadFunc() {
+        while (1) {
+            std::string context_id;
+            HttpRequestPtr http_request = make_shared<HttpRequest>();
+            if (HttpService::Instance()->TimedWait(context_id, http_request, 2000)) {
+                usleep(10000);
+            }
+
+            HttpResponsePtr new_response = make_shared<HttpResponse>();
+            new_response->http_code = 200;
+            new_response->body = http_request->body;
+            // 这里处理响应业务
+            HttpService::Instance()->Response(context_id, new_response);
+            PLOG_INFO("send response, context_id=%s", context_id.c_str());
         }
     }
 };
 
 class BusiThread {
  public:
-    void Start() {
+    void Start() { SelfRun(); }
+
+ protected:
+    void RunWithCurl() {
         client = new AsyncHttpClient();
         boost::thread_group group;
         for (size_t i = 0; i < 4; i++) {
             group.create_thread(bind(&RequestHandler::ThreadFunc, new RequestHandler));
         }
-        for (size_t i = 0; i < 4; i++) {
+        for (size_t i = 0; i < 1; i++) {
             group.create_thread(bind(&ResponseHandler::ThreadFunc, new ResponseHandler));
+        }
+        group.join_all();
+    }
+
+    void SelfRun() {
+        boost::thread_group group;
+        for (size_t i = 0; i < 8; i++) {
+            group.create_thread(bind(&RequestLoopHandler::ThreadFunc, new RequestLoopHandler));
         }
         group.join_all();
     }

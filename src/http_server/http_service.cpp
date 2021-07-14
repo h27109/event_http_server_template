@@ -45,10 +45,17 @@ void HttpService::DoService(void *handler, HttpRequestPtr request) {
     context->request = request;
     context->handler = handler;
 
+    static int recv_count = 0;
+    recv_count++;
+    if(recv_count % 100 == 0)
+    {
+        std::cout << "recv request=" << recv_count << std::endl;
+    }
+
     m_queue.PushFront(context);
     if(!m_session.PushSession(context->id, context))
     {
-        PLOG_ERROR("push to session failed");
+        std::cout << "push to session failed" << std::endl;
     }
 }
 

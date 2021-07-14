@@ -63,7 +63,7 @@ int HttpServer::RunEvent() {
         PLOG_ERROR("event init failed");
         return -1;
     }
-    evhttp_set_timeout(httpd_, httpd_option_timeout);
+    //evhttp_set_timeout(httpd_, httpd_option_timeout);
 
     PLOG_INFO("http timeout=%d", httpd_option_timeout);
 

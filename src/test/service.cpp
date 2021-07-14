@@ -53,7 +53,7 @@ static bool InitLog() {
 
         ///设置输出设备类型,默认为输出到文件, "FILE", "STDOUT"
         //lspf::log::Log::SetOutputDevice(conf->GetLocalConfStr("Log", "DeviceType"));
-        lspf::log::Log::SetOutputDevice("STDOUT");
+        lspf::log::Log::SetOutputDevice("FILE");
 
         ///设置输出路径
         //lspf::log::Log::SetFilePath(conf->GetLocalConfStr("Log", "Path"));
@@ -90,7 +90,14 @@ static void Recv(AsyncHttpClient *client) {
         string session_id;
         AsyncResponseMsg response;
         int timeout_in_ms = 2000;
+
+        static int recv_count = 0;
         if (client->TimedWaitResponse(session_id, response, timeout_in_ms)) {
+            recv_count++;
+            if(recv_count % 100 == 0)
+            {
+                std::cout << "multi test recv request=" << recv_count << std::endl;
+            }
             lspf::log::Log::SetLogId(session_id);
             PLOG_INFO("recv response, code=%d, count=%d", response.http_code, ++count);
             lspf::log::Log::SetLogId("");
@@ -110,7 +117,7 @@ bool Service::Start() {
     t.detach();
 
     while (1) {
-        int icount = 200;
+        int icount = 20000;
 
         std::cout << "input send count" << std::endl;
 
@@ -120,7 +127,10 @@ bool Service::Start() {
 
         for (int i = 0; i < icount; ++i) {
             string uuid = GetStringUUID();
+            lspf::log::Log::SetLogId(uuid);
             client->Post(url, uuid, uuid, uuid, headers);
+            //usleep(10000);
+            lspf::log::Log::SetLogId("");
         }
         std::cout << "finished" << std::endl;
 

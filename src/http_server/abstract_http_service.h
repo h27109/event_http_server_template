@@ -12,7 +12,7 @@
 #include "common/blocking_queue.h"
 #include "common/string_utility.h"
 #include "common/time_utility.h"
-#include "transport/session_cache.h"
+#include "./session_cache.h"
 
 class HttpRequest {
  public:
