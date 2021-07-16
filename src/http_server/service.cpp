@@ -58,11 +58,11 @@ static bool InitLog() {
 
         ///设置输出设备类型,默认为输出到文件, "FILE", "STDOUT"
         //lspf::log::Log::SetOutputDevice(conf->GetLocalConfStr("Log", "DeviceType"));
-        lspf::log::Log::SetOutputDevice("STDOUT");
+        lspf::log::Log::SetOutputDevice("FILE");
 
         ///设置输出路径
         //lspf::log::Log::SetFilePath(conf->GetLocalConfStr("Log", "Path"));
-        lspf::log::Log::SetFilePath("/tmp");
+        lspf::log::Log::SetFilePath(".");
 
         ///设置输出文件
         lspf::log::Log::SetFileName(conf->GetLocalConfStr("Log", "FileName"));
@@ -91,7 +91,10 @@ bool Service::InitHttpServer() {
     // HttpService::Instance()->Registe("/bank_sale", bank_sale);
 
     // 设置http service的响应发送处理函数
-    HttpServer::Instance()->Start(8080, HttpService::Instance());
+    //HttpServer::Instance()->Start(8080, HttpService::Instance());
+
+    thread t(bind(&HttpServer::Start, HttpServer::Instance(), 8080, HttpService::Instance()));
+    t.detach();
     return true;
 }
 

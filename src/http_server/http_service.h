@@ -39,6 +39,10 @@ class HttpService : public AbstractHttpSevice {
     /// @param context_id-上下文id，request-请求体，timeout_ms-超时毫秒数
     /// @return bool-是否有新的http请求
     bool TimedWait(std::string &context_id, HttpRequestPtr &request, int timecout_ms);
+ protected:
+    BlockingQueue<HttpContextPtr> m_queue;
+
+    SessionCache<HttpContextPtr, std::string> m_session;
 
  private:
     std::string GenContextId();

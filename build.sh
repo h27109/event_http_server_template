@@ -136,7 +136,7 @@ echo `pwd`
 mv ./build/release/bin/event_http_server_template .
 mv ./build/release/bin/multi_client .
 
-./event_http_server_template > /tmp/event_http_server_template.log
+./event_http_server_template
 
 sleep 5
 

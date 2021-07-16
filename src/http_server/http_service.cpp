@@ -1,5 +1,7 @@
 #include "http_service.h"
 
+#include "common/uuid_generator.h"
+
 HttpService::HttpService() {}
 HttpService::~HttpService() {}
 
@@ -7,17 +9,17 @@ bool HttpService::TimedWait(std::string &conext_id, HttpRequestPtr &request, int
     HttpContextPtr context;
 
     bool ret = m_queue.TimedPopBack(&context, timeout_ms);
-/*
-    std::vector<HttpContextPtr> context_list;
-    std::vector<std::string> context_id_list;
+    /*
+        std::vector<HttpContextPtr> context_list;
+        std::vector<std::string> context_id_list;
 
-    m_session.ClearTimeout(5, context_list, context_id_list);
-    HttpResponsePtr response = make_shared<HttpResponse>();
-    response->http_code = 500; // 超过时间的会话向前端返回500的错误，并释放掉会话
-    for (auto context : context_list) {
-        reply_func(context->handler, response);
-    }
-*/
+        m_session.ClearTimeout(5, context_list, context_id_list);
+        HttpResponsePtr response = make_shared<HttpResponse>();
+        response->http_code = 500; // 超过时间的会话向前端返回500的错误，并释放掉会话
+        for (auto context : context_list) {
+            reply_func(context->handler, response);
+        }
+    */
     if (!ret || !context) {
         return false;
     }
@@ -38,25 +40,19 @@ std::string HttpService::GenContextId() {
 }
 
 void HttpService::DoService(void *handler, HttpRequestPtr request) {
-    // put into session and queue
-    PLOG_INFO("recv msg from client");
     HttpContextPtr context = make_shared<HttpContext>();
     context->id = GenContextId();
     context->request = request;
     context->handler = handler;
 
-    static int recv_count = 0;
-    recv_count++;
-    if(recv_count % 100 == 0)
-    {
-        std::cout << "recv request=" << recv_count << std::endl;
-    }
+    PLOG_INFO("recv msg from client, context_id=%s", context->id.c_str());
 
-    m_queue.PushFront(context);
-    if(!m_session.PushSession(context->id, context))
-    {
-        std::cout << "push to session failed" << std::endl;
+    // 先插入session，然后插入queue
+    if (!m_session.PushSession(context->id, context)) {
+        PLOG_ERROR("push to session failed, session count=%d", m_session.Size());
+        return;
     }
+    m_queue.PushFront(context);
 }
 
 void HttpService::Response(const std::string &context_id, HttpResponsePtr &response) {
@@ -67,6 +63,5 @@ void HttpService::Response(const std::string &context_id, HttpResponsePtr &respo
         return;
     }
     lspf::log::Log::SetLogId(context->request->body);
-    PLOG_INFO("do response");
     reply_func(context->handler, response);
 }

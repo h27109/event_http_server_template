@@ -20,7 +20,6 @@
 
 using std::string;
 
-
 class HttpServer {
  public:
     HttpServer();
@@ -52,8 +51,11 @@ class HttpServer {
  private:
     static AbstractHttpSevice *service_;
 
+    int reply_fds[2];
     int port_ = -1;
     struct evhttp *httpd_ = nullptr;
+    struct event_config *cfg_ = nullptr;
+    struct event_base *base_ = nullptr;
 
     /// @brief libevent日志回调函数
     /// @param level 日志级别，msg消息内容
@@ -65,5 +67,7 @@ class HttpServer {
     /// @return void
     static void GenCallBack(struct evhttp_request *req, void *arg);
 
-    static void RequestCompleted(struct evhttp_request *req, void * arg);
+    static void RequestCompleted(struct evhttp_request *req, void *arg);
+
+    static void SendTo(int fd, short what, void *arg);
 };

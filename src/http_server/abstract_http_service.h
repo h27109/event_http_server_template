@@ -9,10 +9,10 @@
 #include <thread>
 #include <vector>
 
+#include "./session_cache.h"
 #include "common/blocking_queue.h"
 #include "common/string_utility.h"
 #include "common/time_utility.h"
-#include "./session_cache.h"
 
 class HttpRequest {
  public:
@@ -53,11 +53,6 @@ class AbstractHttpSevice {
     /// @param func-函数指针
     /// @return void
     void SetReplyFunc(ReplyFunc func) { reply_func = func; }
-
- protected:
-    BlockingQueue<HttpContextPtr> m_queue;
-
-    SessionCache<HttpContextPtr, std::string> m_session;
 
     ReplyFunc reply_func;
 };

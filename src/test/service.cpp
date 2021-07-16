@@ -14,7 +14,7 @@
 #include "alarm_client/alarm_client.h"
 #include "apollo/apollo.h"
 #include "common/app_conf.h"
-#include "common/async_http_client.h"
+#include "./async_http_client.h"
 #include "common/string_utility.h"
 #include "common/thread_pool.h"
 #include "database/db_oracle.h"
@@ -26,6 +26,7 @@
 #include "transport/zk_client.h"
 #include "transport/zk_server.h"
 #include "common/uuid_generator.h"
+#include "common/http_client.h"
 
 void Service::Serve() {
     //初始化服务
@@ -57,7 +58,7 @@ static bool InitLog() {
 
         ///设置输出路径
         //lspf::log::Log::SetFilePath(conf->GetLocalConfStr("Log", "Path"));
-        lspf::log::Log::SetFilePath("/tmp");
+        lspf::log::Log::SetFilePath(".");
 
 
         ///设置输出文件
@@ -92,11 +93,21 @@ static void Recv(AsyncHttpClient *client) {
         int timeout_in_ms = 2000;
 
         static int recv_count = 0;
+        static int recv_count_failed = 0;
+        static int all = 0;
         if (client->TimedWaitResponse(session_id, response, timeout_in_ms)) {
-            recv_count++;
-            if(recv_count % 100 == 0)
+            all ++;
+            if(response.curl_code == 0 && response.http_code == 200)
             {
-                std::cout << "multi test recv request=" << recv_count << std::endl;
+                recv_count++;
+            }
+            else
+            {
+                recv_count_failed ++;
+            }
+            if(all % 100 == 0)
+            {
+                std::cout << "multi test recv response=" << all << " ok cnt=" << recv_count << " failed cnt=" << recv_count_failed << std::endl;
             }
             lspf::log::Log::SetLogId(session_id);
             PLOG_INFO("recv response, code=%d, count=%d", response.http_code, ++count);
@@ -105,8 +116,8 @@ static void Recv(AsyncHttpClient *client) {
     }
 }
 
-//启动自定义服务
-bool Service::Start() {
+bool ASyncSend()
+{
     AsyncHttpClient *client = new AsyncHttpClient();
     string url = "http://127.0.0.1:8080/xxx";
     string request = "abcd";
@@ -129,7 +140,7 @@ bool Service::Start() {
             string uuid = GetStringUUID();
             lspf::log::Log::SetLogId(uuid);
             client->Post(url, uuid, uuid, uuid, headers);
-            //usleep(10000);
+            usleep(1000);
             lspf::log::Log::SetLogId("");
         }
         std::cout << "finished" << std::endl;
@@ -143,6 +154,45 @@ bool Service::Start() {
         sleep(100);
     }
     return true;
+}
+
+void Send()
+{
+    for(int i = 0; i < 1000000; ++i)
+    {
+        HttpClient client;
+        client.AddHead("Content-type:application/json");
+        string response;
+
+        string uuid = GetStringUUID();
+        lspf::log::Log::SetLogId(uuid);
+
+        client.Post("http://127.0.0.1:8080/xxx", uuid, response, false);
+
+        if(i % 100 == 0)
+        {
+            std::cout << "send count = " << i+1 << std::endl;
+        }
+    }
+    
+}
+bool SyncSend()
+{
+    boost::thread_group group;
+    for(int i = 0; i < 16; ++i)
+    {
+        group.create_thread(Send);
+    }
+
+    group.join_all();
+
+    std::cout << "finished" << endl;
+
+    return true;
+}
+//启动自定义服务
+bool Service::Start() {
+    return SyncSend();
 }
 
 //停止自定义服务

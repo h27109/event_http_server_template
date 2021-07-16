@@ -77,16 +77,18 @@ class RequestLoopHandler {
         while (1) {
             std::string context_id;
             HttpRequestPtr http_request = make_shared<HttpRequest>();
-            if (HttpService::Instance()->TimedWait(context_id, http_request, 2000)) {
-                usleep(10000);
+            if (!HttpService::Instance()->TimedWait(context_id, http_request, 2000)) {
+                continue;
             }
-
+            //usleep(100000);
+            lspf::log::Log::SetLogId(http_request->body);
             HttpResponsePtr new_response = make_shared<HttpResponse>();
             new_response->http_code = 200;
             new_response->body = http_request->body;
             // 这里处理响应业务
             HttpService::Instance()->Response(context_id, new_response);
             PLOG_INFO("send response, context_id=%s", context_id.c_str());
+            lspf::log::Log::SetLogId("");
         }
     }
 };
@@ -110,7 +112,7 @@ class BusiThread {
 
     void SelfRun() {
         boost::thread_group group;
-        for (size_t i = 0; i < 8; i++) {
+        for (size_t i = 0; i < 16; i++) {
             group.create_thread(bind(&RequestLoopHandler::ThreadFunc, new RequestLoopHandler));
         }
         group.join_all();
