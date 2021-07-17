@@ -23,7 +23,7 @@ class RequestHandler {
             if (HttpService::Instance()->TimedWait(context_id, http_request, 2000)) {
                 string forward_url = "http://172.20.6.21:1637/request_trace_id_validate";
                 string forward_request = http_request->body;
-                string log_id = "log_id";
+                string log_id = http_request->body;
                 string session_id = context_id;
                 vector<string> headers;
                 for (auto it : http_request->head) {
@@ -80,7 +80,7 @@ class RequestLoopHandler {
             if (!HttpService::Instance()->TimedWait(context_id, http_request, 2000)) {
                 continue;
             }
-            //usleep(100000);
+            // usleep(100000);
             lspf::log::Log::SetLogId(http_request->body);
             HttpResponsePtr new_response = make_shared<HttpResponse>();
             new_response->http_code = 200;
@@ -95,16 +95,16 @@ class RequestLoopHandler {
 
 class BusiThread {
  public:
-    void Start() { SelfRun(); }
+    void Start() { RunWithCurl(); }
 
  protected:
     void RunWithCurl() {
         client = new AsyncHttpClient();
         boost::thread_group group;
-        for (size_t i = 0; i < 4; i++) {
+        for (size_t i = 0; i < 8; i++) {
             group.create_thread(bind(&RequestHandler::ThreadFunc, new RequestHandler));
         }
-        for (size_t i = 0; i < 1; i++) {
+        for (size_t i = 0; i < 8; i++) {
             group.create_thread(bind(&ResponseHandler::ThreadFunc, new ResponseHandler));
         }
         group.join_all();

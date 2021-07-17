@@ -65,7 +65,7 @@ class HttpServer {
     /// @brief 收到完整请求后的回调函数
     /// @param req-请求句柄，arg-参数(未使用)
     /// @return void
-    static void GenCallBack(struct evhttp_request *req, void *arg);
+    static void HttpRequestHandler(struct evhttp_request *req, void *arg);
 
     static void RequestCompleted(struct evhttp_request *req, void *arg);
 

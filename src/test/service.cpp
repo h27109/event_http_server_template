@@ -27,6 +27,7 @@
 #include "transport/zk_server.h"
 #include "common/uuid_generator.h"
 #include "common/http_client.h"
+#include "time.h"
 
 void Service::Serve() {
     //初始化服务
@@ -156,9 +157,9 @@ bool ASyncSend()
     return true;
 }
 
-void Send()
+void SyncSendThreadFunc(int count)
 {
-    for(int i = 0; i < 1000000; ++i)
+    for(int i = 0; i < count; ++i)
     {
         HttpClient client;
         client.AddHead("Content-type:application/json");
@@ -173,20 +174,30 @@ void Send()
         {
             std::cout << "send count = " << i+1 << std::endl;
         }
+        /*
+        if(uuid != response)
+        {
+            std::cout << "message is wrong, response:" << response << std::endl;
+        }*/
     }
-    
 }
+
 bool SyncSend()
 {
+    int count = 10;
+    std::cout << "input count per thread " << std::endl;
+    std::cin >> count;
+
+    time_t start_now = TimeUtility::GetCurremtMs();
     boost::thread_group group;
     for(int i = 0; i < 16; ++i)
     {
-        group.create_thread(Send);
+        group.create_thread(boost::bind(SyncSendThreadFunc, count));
     }
 
     group.join_all();
 
-    std::cout << "finished" << endl;
+    std::cout << "finished, used time = " << TimeUtility::GetCurremtMs() - start_now << " ms" << endl;
 
     return true;
 }

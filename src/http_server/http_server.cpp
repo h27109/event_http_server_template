@@ -33,7 +33,7 @@ int HttpServer::Start(int port, AbstractHttpSevice *service) {
 }
 
 void HttpServer::Stop() {
-    PLOG_ERROR("server stop");
+    PLOG_INFO("server stop");
     event_loopbreak();
     evhttp_free(httpd_);
     event_config_free(cfg_);
@@ -47,6 +47,7 @@ void HttpServer::Reply(void *handler, HttpResponsePtr response) {
     {
         std::lock_guard<std::mutex> locker(ResponseMutex);
         ResponseList.insert(val);
+        PLOG_DEBUG("response list count=%d", ResponseList.size());
     }
 
     write(reply_fds[1], &handler, sizeof(void *));
@@ -66,13 +67,13 @@ void HttpServer::SendTo(int fd, short what, void *arg) {
 
     {
         std::lock_guard<std::mutex> locker(ResponseMutex);
-        auto resp = ResponseList.find(handler);
-        if (resp == ResponseList.end()) {
+        auto iter = ResponseList.find(handler);
+        if (iter == ResponseList.end()) {
             PLOG_ERROR("can not find response, handler=0X%X", handler);
             return;
         }
-        response = resp->second;
-        ResponseList.erase(resp);
+        response = iter->second;
+        ResponseList.erase(iter);
     }
 
     req = (struct evhttp_request *)handler;
@@ -84,7 +85,8 @@ void HttpServer::SendTo(int fd, short what, void *arg) {
 
     //输出的内容
     struct evbuffer *buf = evbuffer_new();
-    evbuffer_add_printf(buf, "%s", response->body.c_str());
+    // evbuffer_add_printf(buf, "%s", response->body.c_str());
+    evbuffer_add(buf, response->body.c_str(), response->body.size());
     evhttp_send_reply(req, response->http_code, NULL, buf);
     evbuffer_free(buf);
 }
@@ -94,6 +96,7 @@ int HttpServer::RunEvent() {
     struct evhttp_bound_socket *handle = NULL;
     int ret = 0;
 
+    // event base
     cfg_ = event_config_new();
     base_ = event_base_new_with_config(cfg_);
     if (!base_) {
@@ -107,6 +110,7 @@ int HttpServer::RunEvent() {
         return -1;
     }
 
+    // 回响应的pipe
     if (0 > pipe(reply_fds)) {
         PLOG_ERROR("create reply pipe failed");
         return -1;
@@ -119,7 +123,7 @@ int HttpServer::RunEvent() {
     event_set_log_callback(LogHandler);
 
     // 通用http request回函数
-    evhttp_set_gencb(httpd_, GenCallBack, NULL);
+    evhttp_set_gencb(httpd_, HttpRequestHandler, NULL);
 
     handle = evhttp_bind_socket_with_handle(httpd_, httpd_option_listen.c_str(), port_);
     if (!handle) {
@@ -132,19 +136,22 @@ int HttpServer::RunEvent() {
     PLOG_ERROR("event exit,code=%d", ret);
 }
 
-void HttpServer::GenCallBack(struct evhttp_request *req, void *arg) {
-    const char *uri = evhttp_request_uri(req);
+// libevent主线程回调，单线程
+void HttpServer::HttpRequestHandler(struct evhttp_request *req, void *arg) {
+    const char *uri;
+    char *decoded_uri;
 
+    // http 会话释放时调用，供调试时用
     // evhttp_request_set_on_complete_cb(req, RequestCompleted, NULL);
 
     static int64_t recv_count = 0;
 
-    PLOG_INFO("recv http request, count=%ld", ++recv_count);
+    PLOG_INFO("recv http request, remote host=%s:%d, count=%ld", req->remote_host, req->remote_port, ++recv_count);
 
     HttpRequestPtr request = make_shared<HttpRequest>();
 
     // decoded uri
-    char *decoded_uri;
+    uri = evhttp_request_uri(req);
     decoded_uri = evhttp_decode_uri(uri);
     request->url = string(decoded_uri);
     free(decoded_uri);
@@ -189,5 +196,4 @@ void HttpServer::LogHandler(int level, const char *msg) {
     }
 }
 
-// http 会话释放时调用，供调试时用
 void HttpServer::RequestCompleted(struct evhttp_request *req, void *arg) { PLOG_INFO("request finished, req=%x", req); }
