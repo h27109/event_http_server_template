@@ -33,17 +33,18 @@ class HttpService : public AbstractHttpSevice {
     /// @brief 回http响应
     /// @param context_id-上下文id，response-响应内容
     /// @return void
-    void Response(const std::string &context_id, HttpResponsePtr &response);
+    void Response(const string &context_id, HttpResponsePtr &response);
 
     /// @brief 获取http请求
     /// @param context_id-上下文id，request-请求体，timeout_ms-超时毫秒数
     /// @return bool-是否有新的http请求
-    bool TimedWait(std::string &context_id, HttpRequestPtr &request, int timecout_ms);
+    bool TimedWait(string &context_id, HttpRequestPtr &request, int timecout_ms);
+
  protected:
     BlockingQueue<HttpContextPtr> m_queue;
 
-    SessionCache<HttpContextPtr, std::string> m_session;
+    SessionCache<HttpContextPtr, string> m_session;
 
  private:
-    std::string GenContextId();
+    string GenContextId();
 };

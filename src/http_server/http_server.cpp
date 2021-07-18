@@ -8,10 +8,10 @@ using std::string;
 
 AbstractHttpSevice *HttpServer::service_;
 
-// int HttpServer::reply_fds[2];
-
 static std::map<void *, HttpResponsePtr> ResponseList;
 static std::mutex ResponseMutex;
+
+bool HttpServer::stop_flag_ = false;
 
 //----------外部接口-------------------
 HttpServer::HttpServer() {}
@@ -32,65 +32,118 @@ int HttpServer::Start(int port, AbstractHttpSevice *service) {
     return RunEvent();
 }
 
-void HttpServer::Stop() {
-    PLOG_INFO("server stop");
+void HttpServer::Stop(int wait_sec) {
+    PLOG_INFO("server start to stop");
+    stop_flag_ = true;
+    if (wait_sec > 0) {
+        sleep(wait_sec);
+    }
+
     event_loopbreak();
     evhttp_free(httpd_);
     event_config_free(cfg_);
+
+    PLOG_INFO("server stoped");
 }
 
+// 发送响应
 void HttpServer::Reply(void *handler, HttpResponsePtr response) {
-    PLOG_INFO("reply to event, handler=0X%X", handler);
-
+    // 保存response到待发送的map
     auto val = std::pair<void *, HttpResponsePtr>(handler, response);
 
     {
         std::lock_guard<std::mutex> locker(ResponseMutex);
         ResponseList.insert(val);
-        PLOG_DEBUG("response list count=%d", ResponseList.size());
+        PLOG_INFO("response list count=%d", ResponseList.size());
     }
 
+    // 通知event主线程
     write(reply_fds[1], &handler, sizeof(void *));
 }
 
 //-------------内部函数-------------
-void HttpServer::SendTo(int fd, short what, void *arg) {
-    void *handler;
-    struct evhttp_request *req;
-    HttpResponsePtr response;
-
-    int read_len = read(fd, &handler, sizeof(void *));
+// 获取可以返回的连接
+bool HttpServer::FetchResponse(int reply_fd, void *&handler, HttpResponsePtr &response) {
+    // 接收待回应的handler
+    int read_len = read(reply_fd, &handler, sizeof(void *));
     if (read_len != sizeof(void *)) {
         PLOG_ERROR("read from pipe line is wrong, read length=%d", read_len);
-        return;
+        return false;
     }
 
+    // 取得响应的内容
     {
         std::lock_guard<std::mutex> locker(ResponseMutex);
         auto iter = ResponseList.find(handler);
         if (iter == ResponseList.end()) {
             PLOG_ERROR("can not find response, handler=0X%X", handler);
-            return;
+            return false;
         }
         response = iter->second;
         ResponseList.erase(iter);
     }
+    return true;
+}
+
+void HttpServer::PackRespHead(struct evhttp_request *req, HttpResponsePtr response) {
+    for (auto head_pair : response->head) {
+        evhttp_add_header(req->output_headers, head_pair.first.c_str(), head_pair.second.c_str());
+    }
+
+    // 如果在关闭server过程中，则直接关闭连接
+    if (stop_flag_) {
+        evhttp_add_header(req->output_headers, "Connection", "close");
+        return;
+    }
+
+    //一个连接最多过100个请求
+    const int max_request_per_conn = 100;
+    struct evhttp_connection *evcon = req->evcon;
+    static map<evhttp_connection *, int> req_in_connection;
+
+    // connection头域为空或者为keep alive，需要保持长连接
+    // 否则libevent会自动通知关闭连接，此时需要删除掉连接信息，否则会有内存泄漏
+    string keep_alive = evhttp_find_header(req->input_headers, "Connection");
+    if (!keep_alive.empty() && keep_alive != "keep-alive") {
+        req_in_connection.erase(evcon);
+        return;
+    }
+
+    auto it = req_in_connection.find(evcon);
+    if (it == req_in_connection.end()) {
+        auto val = std::pair<evhttp_connection *, int>(evcon, 1);
+        req_in_connection.insert(val);
+    } else {
+        ++it->second;
+        if (it->second >= max_request_per_conn) {
+            evhttp_add_header(req->output_headers, "Connection", "close");
+            req_in_connection.erase(it);
+        }
+    }
+}
+
+// 发送响应到网络
+void HttpServer::SendTo(int reply_fd, short what, void *arg) {
+    void *handler;
+    HttpResponsePtr response;
+    struct evhttp_request *req;
+
+    if (!FetchResponse(reply_fd, handler, response)) {
+        return;
+    }
 
     req = (struct evhttp_request *)handler;
 
-    PLOG_INFO("reply to relay, handler=%x", req);
+    PackRespHead(req, response);
 
-    // HTTP header
-    // evhttp_add_header(req->output_headers, "Connection", "close");  //http长连接由libevent自行管理
-
-    //输出的内容
+    //返回body
     struct evbuffer *buf = evbuffer_new();
-    // evbuffer_add_printf(buf, "%s", response->body.c_str());
     evbuffer_add(buf, response->body.c_str(), response->body.size());
     evhttp_send_reply(req, response->http_code, NULL, buf);
     evbuffer_free(buf);
 }
 
+// 启动event
 int HttpServer::RunEvent() {
     string httpd_option_listen = "0.0.0.0";  // 监听所有ip
     struct evhttp_bound_socket *handle = NULL;
@@ -111,7 +164,7 @@ int HttpServer::RunEvent() {
     }
 
     // 回响应的pipe
-    if (0 > pipe(reply_fds)) {
+    if (pipe(reply_fds) < 0) {
         PLOG_ERROR("create reply pipe failed");
         return -1;
     }
@@ -134,6 +187,8 @@ int HttpServer::RunEvent() {
     ret = event_base_dispatch(base_);
 
     PLOG_ERROR("event exit,code=%d", ret);
+
+    return 0;
 }
 
 // libevent主线程回调，单线程
@@ -145,7 +200,6 @@ void HttpServer::HttpRequestHandler(struct evhttp_request *req, void *arg) {
     // evhttp_request_set_on_complete_cb(req, RequestCompleted, NULL);
 
     static int64_t recv_count = 0;
-
     PLOG_INFO("recv http request, remote host=%s:%d, count=%ld", req->remote_host, req->remote_port, ++recv_count);
 
     HttpRequestPtr request = make_shared<HttpRequest>();

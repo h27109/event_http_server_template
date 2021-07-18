@@ -31,9 +31,9 @@ class HttpServer {
     int Start(int port, AbstractHttpSevice *service);
 
     /// @brief 停止http服务
-    /// @param void
+    /// @param wait_sec-等待会话完成时间
     /// @return void
-    void Stop();
+    void Stop(int wait_sec = 0);
 
     /// @brief 发送Http response到客户端
     /// @param handler-连接句柄，response-响应消息
@@ -51,11 +51,13 @@ class HttpServer {
  private:
     static AbstractHttpSevice *service_;
 
-    int reply_fds[2];
+    int reply_fds[2] = {0, 0};
     int port_ = -1;
     struct evhttp *httpd_ = nullptr;
     struct event_config *cfg_ = nullptr;
     struct event_base *base_ = nullptr;
+
+    static bool stop_flag_;
 
     /// @brief libevent日志回调函数
     /// @param level 日志级别，msg消息内容
@@ -67,7 +69,23 @@ class HttpServer {
     /// @return void
     static void HttpRequestHandler(struct evhttp_request *req, void *arg);
 
+    /// @brief http会话完成后的回调函数
+    /// @param req-请求句柄，arg-参数(未使用)
+    /// @return void
     static void RequestCompleted(struct evhttp_request *req, void *arg);
 
-    static void SendTo(int fd, short what, void *arg);
+    /// @brief 从reply管道获取待处理的响应
+    /// @param reply_fd-管道，handler-返回句柄，response-返回报文
+    /// @return bool是否成功
+    static bool FetchResponse(int reply_fd, void *&handler, HttpResponsePtr &response);
+
+    /// @brief 打包响应消息的http头
+    /// @param req-请求句柄，response-返回报文
+    /// @return void
+    static void PackRespHead(struct evhttp_request *req, HttpResponsePtr response);
+
+    /// @brief 发送响应到网络
+    /// @param reply_fd-管道，what/arg无使用
+    /// @return void
+    static void SendTo(int reply_fd, short what, void *arg);
 };

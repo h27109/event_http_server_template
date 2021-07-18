@@ -174,6 +174,7 @@ void SyncSendThreadFunc(int count)
         {
             std::cout << "send count = " << i+1 << std::endl;
         }
+        std::cout << "recv body=" << response << std::endl;
         /*
         if(uuid != response)
         {
@@ -186,7 +187,7 @@ bool SyncSend()
 {
     int count = 10;
     std::cout << "input count per thread " << std::endl;
-    std::cin >> count;
+    //std::cin >> count;
 
     time_t start_now = TimeUtility::GetCurremtMs();
     boost::thread_group group;
