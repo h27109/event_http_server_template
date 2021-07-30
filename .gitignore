@@ -5,6 +5,7 @@
 /build/log
 /build/run
 /.vscode
+/*.log
 
 log
 build
