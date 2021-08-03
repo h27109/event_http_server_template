@@ -80,6 +80,58 @@ static bool InitLog() {
     return true;
 }
 
+bool Service::InitCpp2Sky() {
+    
+
+    // 2. Create tracing context
+    auto tracing_context = tracer->newContext();
+
+    /**
+     * 3. Create entry span it traces RPC call.
+     * Span lifetime is managed by RAII. So user don't have to call startSpan and
+     * endSpan explicitly. But it provides basic approach that doesn't use RAII.
+     *
+     * example:
+     *
+     * auto current_span = tracing_context->createEntrySpan();
+     * current_span->startSpan("sample_op1");
+     *
+     * auto current_span2 = tracing_context->createExitSpan();
+     * current_span2->startSpan("sample_op2");
+     *
+     * httplib::Client cli("remote", 8082);
+     * httplib::Headers headers = {
+     *   {kPropagationHeader.data(),
+     *   tracing_context->createSW8HeaderValue(current_span, "remote:8082")}};
+     *
+     * auto res = cli.Get("/ping", headers);
+     *
+     * current_span2->endSpan();
+     * current_span->endSpan();
+     *
+     */
+    {
+        StartEntrySpan entry_span(tracing_context, "sample_op1");
+
+        {
+            std::string target_address = "127.0.0.1:8081";
+            StartExitSpan exit_span(tracing_context, entry_span.get(), "sample_op2");
+            exit_span.get()->setPeer(target_address);
+
+            httplib::Client cli("127.0.0.1", 8081);
+            httplib::Headers headers = {
+                {kPropagationHeader.data(), *tracing_context->createSW8HeaderValue(exit_span.get(), target_address)}};
+
+            auto res = cli.Get("/ping", headers);
+        }
+    }
+
+    tracer->report(std::move(tracing_context));
+    return 0;
+}
+
+
+
 bool Service::InitHttpServer() {
     // 设置http service的响应发送处理函数
     ReplyFunc reply_func = std::bind(&HttpServer::Reply, HttpServer::Instance(), std::placeholders::_1, std::placeholders::_2);

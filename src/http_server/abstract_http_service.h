@@ -35,7 +35,9 @@ typedef shared_ptr<HttpResponse> HttpResponsePtr;
 class HttpContext {
  public:
     std::string id;
+    int apm_context_id = -1;
     HttpRequestPtr request;
+    HttpResponsePtr response;
     void *handler = nullptr;
 };
 

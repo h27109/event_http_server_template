@@ -9,6 +9,7 @@ using std::string;
 AbstractHttpSevice *HttpServer::service_;
 
 static std::map<void *, HttpResponsePtr> ResponseList;
+static std::map<void *, int64_t> ApmList;
 static std::mutex ResponseMutex;
 
 bool HttpServer::stop_flag_ = false;
@@ -50,10 +51,12 @@ void HttpServer::Stop(int wait_sec) {
 void HttpServer::Reply(void *handler, HttpResponsePtr response) {
     // 保存response到待发送的map
     auto val = std::pair<void *, HttpResponsePtr>(handler, response);
+    auto apm_val = std::pair<void *, int64_t>(handler, GetApmId());
 
     {
         std::lock_guard<std::mutex> locker(ResponseMutex);
         ResponseList.insert(val);
+        ApmList.insert(apm_val);
         PLOG_INFO("response list count=%d", ResponseList.size());
     }
 
@@ -81,6 +84,13 @@ bool HttpServer::FetchResponse(int reply_fd, void *&handler, HttpResponsePtr &re
         }
         response = iter->second;
         ResponseList.erase(iter);
+
+        auto apm_it = ApmList.find(handler);
+        if(apm_it != ApmList.end())
+        {
+            SetApmId(apm_it->second);
+            ApmList.erase(apm_it);
+        }
     }
     return true;
 }
@@ -88,6 +98,15 @@ bool HttpServer::FetchResponse(int reply_fd, void *&handler, HttpResponsePtr &re
 void HttpServer::PackRespHead(struct evhttp_request *req, HttpResponsePtr response) {
     for (auto head_pair : response->head) {
         evhttp_add_header(req->output_headers, head_pair.first.c_str(), head_pair.second.c_str());
+    }
+
+    // 增加skywalking的sw8头
+    int64_t apm_id = GetApmId();
+    if (apm_id != -1) {
+        string key, value;
+        if (SkyAmp::Instance()->CreateSw8Header(key, value)) {
+            evhttp_add_header(req->output_headers, key.c_str(), value.c_str());
+        }
     }
 
     // 如果在关闭server过程中，则直接关闭连接
@@ -141,6 +160,7 @@ void HttpServer::SendTo(int reply_fd, short what, void *arg) {
     evbuffer_add(buf, response->body.c_str(), response->body.size());
     evhttp_send_reply(req, response->http_code, NULL, buf);
     evbuffer_free(buf);
+    SkyApm::Instance()->Finish(GetApmId());
 }
 
 // 启动event
@@ -216,6 +236,17 @@ void HttpServer::HttpRequestHandler(struct evhttp_request *req, void *arg) {
         // parse head
         request->head.push_back(pair<string, string>(string(header->key), string(header->value)));
     }
+
+    string sw8_property = evhttp_find_header(req->input_headers, "sw8");
+
+    int64_t apm_id = -1;
+    if (sw8_property.empty())  // 无trace 信息
+    {
+        apm_id = SkyApm::Instance()->NewContext();
+    } else {
+        apm_id = SkyApm::Instance()->NewContext(sw8_property);
+    }
+    SetApmId(apm_id);
 
     // decode body
     char *post_data = (char *)EVBUFFER_DATA(req->input_buffer);

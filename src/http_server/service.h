@@ -17,6 +17,8 @@ private:
     static bool Start();
 
     static bool InitHttpServer();
+
+    static bool InitCpp2Sky();
 };
 
 #endif  //__SERVICE_H__

@@ -32,6 +32,8 @@ bool HttpService::TimedWait(string &conext_id, HttpRequestPtr &request, int time
     }
     conext_id = context->id;
     request = context->request;
+
+    SetApmId(context->apm_context_id);
     return true;
 }
 
@@ -46,6 +48,7 @@ void HttpService::DoService(void *handler, HttpRequestPtr request) {
     context->id = GenContextId();
     context->request = request;
     context->handler = handler;
+    context->apm_context_id = GetApmId();
 
     PLOG_INFO("recv msg from client, context_id=%s", context->id.c_str());
 
@@ -64,5 +67,7 @@ void HttpService::Response(const string &context_id, HttpResponsePtr &response) 
         PLOG_INFO("get session failed, context_id=%s", context_id.c_str());
         return;
     }
+    SetApmId(context->apm_id);
+    
     reply_func(context->handler, response);
 }
